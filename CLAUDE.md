@@ -2,89 +2,151 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## WAT Framework
+## What this is
 
-This project uses the **WAT architecture** (Workflows → Agents → Tools):
+**The Weakest Link — Party Edition**: a host-controlled React + TypeScript + Vite web app
+that runs the game show for a room of friends. One person (the host) drives everything from
+a single screen — there are no player devices, no answer matching, and no server. The host
+judges every answer by ear and presses a key.
 
-- **Workflows** (`workflows/`): Markdown SOPs defining objective, inputs, tool sequence, outputs, and error handling. Read the relevant workflow before doing anything. Don't create or overwrite workflows without asking.
-- **Agents** (you): Orchestrate tool execution, handle failures, and keep workflows updated as you learn.
-- **Tools** (`tools/`): Python scripts that do the actual work. Always check `tools/` for an existing script before writing new code.
+Local-first: it runs from `npm run dev` on the host's laptop, plugged into a TV. It is also
+deployed to Vercel so it can be opened from any browser.
 
-Deliverables go to cloud services (Google Slides, Sheets, etc.). Everything in `.tmp/` is disposable scratch space.
+All art and audio are original. No copyrighted show assets are used — sound effects are
+synthesized live with the Web Audio API and the announcer is Web Speech (`src/audio/audio.ts`).
 
 ---
 
-## Running the Pipeline
+## Commands
 
-**Full end-to-end report (runs all 5 steps):**
 ```bash
-python tools/run_weekly_report.py
+npm install              # once
+npm run dev              # Vite dev server, opens the browser automatically
+npm run build            # tsc -b && vite build  -> dist/
+npm run preview          # serve the production build locally
+npx vercel --prod        # deploy to production
 ```
 
-**Run individual steps:**
-```bash
-python tools/fetch_youtube_data.py        # Step 1: YouTube API → .tmp/youtube_data.json
-python tools/scrape_youtube_playwright.py # Step 2: Headed browser → .tmp/screenshots/, .tmp/thumbnails/
-python tools/analyze_themes_gemini.py     # Step 3: Gemini → .tmp/analysis.json
-python tools/create_google_slides.py      # Step 4: Google Slides → .tmp/slides_url.txt
-python tools/send_gmail.py               # Step 5: Gmail → email to collindickinson4@gmail.com
+Non-technical entry point: double-clicking `Weakest Link.bat` installs deps on first run,
+then launches `npm run dev`. Don't break that script — it is how the game actually gets
+started on game night.
+
+**Always run `npm run build` before claiming a change works.** `tsc -b` is part of the build,
+so it is the typecheck too. There is no test suite.
+
+---
+
+## Architecture
+
+Everything is client-side. There is no backend, no API, and no network dependency at runtime
+other than the Google Fonts link in `index.html`.
+
+```
+src/
+  main.tsx              Entry. Reads ?display to decide host app vs audience app.
+  App.tsx               Host app. Phase switch + corner controls (display / mute / fullscreen).
+  AudienceApp.tsx       Read-only mirror app for the second screen.
+  store/gameStore.ts    Zustand store. ALL game state and every rule lives here.
+  data/questions.ts     The question bank (QUESTIONS) + CATEGORIES.
+  data/ladder.ts        Money ladder + securedValue/targetValue/money helpers.
+  data/quips.ts         Host one-liners.
+  audio/audio.ts        AudioManager singleton — Web Audio SFX + Web Speech announcer.
+  lib/displaySync.ts    BroadcastChannel bridge, host window -> audience windows.
+  lib/useHotkeys.ts     Keyboard binding hook.
+  components/           Screens (one per phase) + shared UI.
+  components/audience/  Audience-window counterparts of the screens.
 ```
 
-All commands must be run from the **project root** (the directory containing `CLAUDE.md`). The orchestrator (`run_weekly_report.py`) sets `os.chdir` to the project root automatically, but individual tools rely on relative paths like `.tmp/` and `credentials.json`.
+### The store is the single source of truth
 
----
+`src/store/gameStore.ts` (~630 lines) holds the entire game: roster, round state, stats,
+votes, finalists, and undo history. Components read via `useGame(...)` selectors and call
+actions — they do not compute game rules themselves. **Put new rules in the store, not in a
+component.**
 
-## Implemented Automation: YouTube Trend Report
+Game flow is a `Phase` enum, and `App.tsx` is a switch over it:
 
-The only automation currently built is `workflows/youtube_trend_report.md`. It runs weekly (Monday 9am via Windows Task Scheduler) and produces a 4-slide Google Slides deck covering:
-
-1. Title slide (week + date range)
-2. Top trending videos table (top 8, ranked by view count)
-3. Content themes & patterns (Gemini analysis)
-4. Video recommendations + surprise insight
-
-**Keywords monitored** (defined in `tools/fetch_youtube_data.py` → `KEYWORDS`):
-`"Claude AI"`, `"Claude tips"`, `"AI tools 2025"`, `"best AI tools"`, `"prompt engineering"`
-
----
-
-## Credentials & Environment
-
-| File | Purpose |
-|------|---------|
-| `.env` | `YOUTUBE_API_KEY`, `GEMINI_API_KEY` |
-| `credentials.json` | Google OAuth Desktop client (must enable Slides API, Drive API, Gmail API in Google Cloud Console) |
-| `token.json` | Auto-generated OAuth token cache. Delete to force re-auth. |
-
-Google OAuth scopes used: `presentations`, `drive.file`, `gmail.send`. If any scope is missing from the OAuth client, delete `token.json` and re-run to trigger a fresh consent flow.
-
----
-
-## Key API Constraints
-
-**Google Slides API** — the Python client is quirky:
-- `transform.translateX` / `translateY` must be **plain EMU integers** (points × 12700), not `{"magnitude": ..., "unit": "EMU"}` objects (those are only for `size` fields)
-- Text `foregroundColor` requires `{"opaqueColor": {"rgbColor": {...}}}` — not bare `{"rgbColor": {...}}`
-- Paragraph `alignment` uses `"START"` / `"CENTER"` / `"END"` — **not** `"LEFT"` / `"RIGHT"`
-- Outline weight of `0` is rejected — omit the outline field entirely for borderless shapes
-- Batch all requests for a single slide into one `batchUpdate` call per slide function
-
-**YouTube Data API v3** — quota is 10,000 units/day. Each `search.list` call costs 100 units. The weekly run uses ~600 units total (safe).
-
-**Gemini** — `gemini-2.0-flash` is retired for new users. Use `gemini-2.5-flash` (defined in `tools/analyze_themes_gemini.py` → `MODEL`). Uses `google-genai` SDK (`from google import genai`), not the deprecated `google-generativeai` package.
-
-**Windows terminal** — the terminal encoding is `cp1252` by default and can't print emoji that appear in YouTube video titles. `run_weekly_report.py` calls `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` at startup; individual tools run standalone in a subprocess context and don't need this.
-
-**Playwright** — runs in headed mode (real visible browser). Install browser once with `python -m playwright install chromium`. The scraping step is non-fatal: the orchestrator continues if it fails.
-
----
-
-## Dependencies
-
-Install with:
-```bash
-pip install -r requirements.txt
-python -m playwright install chromium
+```
+title -> setup -> intro -> round -> roundStats -> voting -> elimination -> (round | final) -> winner
 ```
 
-Key packages: `google-api-python-client`, `google-genai`, `google-auth-oauthlib`, `playwright`, `python-dotenv`, `isodate`, `pandas`, `pillow`.
+### Undo
+
+`correct` / `wrong` / `bank` push a `ScoreSnapshot` onto `history` before mutating. `undo()`
+pops it. If you add an action that changes score, chain, pot, stats, or the drawn question,
+it must push a snapshot too — otherwise Ctrl+Z silently corrupts the game mid-round.
+
+### Persistence
+
+`zustand/middleware` `persist` with `partialize` saving **only** `players` and `settings`.
+Transient game state is deliberately not persisted, so a mid-game reload restarts the game
+but keeps the roster. Keep it that way unless asked — a half-restored game is worse than none.
+
+### Audience display
+
+`window.open('?display')` opens a second window that mirrors the host over a same-origin
+`BroadcastChannel` (`lib/displaySync.ts`). It is one-way: host broadcasts, audience listens
+and applies with `useGame.setState`.
+
+`SHARED_KEYS` is a deliberate allowlist. **`currentQuestion`, `usedQuestionKeys`, and
+`history` are intentionally excluded** — the audience must never see the question or the
+draw pile. When you add a state field that the audience screen needs, add it to `SHARED_KEYS`;
+when you add anything host-secret, leave it out and say so in a comment.
+
+Anything the audience must see also needs its own flag in the store rather than local
+component state — `statsRevealed` and `votesRevealed` exist for exactly this reason.
+
+### Hotkeys
+
+`useHotkeys` maps single keys and `ctrl+key` combos, and ignores keystrokes inside
+inputs/textareas. Host round controls: `C` correct, `X` wrong, `B` bank, `Space` pause,
+`Enter` start clock, `Ctrl+Z` undo.
+
+---
+
+## Question bank
+
+`src/data/questions.ts` — currently **711** questions across 11 categories, written in the
+voice of the real show rather than as generic trivia. Read the comment at the top of the file
+before adding or editing any; the conventions there are load-bearing:
+
+- `"In [subject], ..."` formal setups.
+- Letter clues put the hint **last** (`"..., starting with the letter M?"`) so the player
+  hears the whole question before the help.
+- Wordplay links connecting two unrelated things.
+- Difficulty deliberately mixed roughly 60/30/10 (gettable / sweat / stumper). The goal of a
+  round is a **chain**, so easy questions are load-bearing, not filler.
+- Every answer must be short and unambiguous. The host judges by ear — there is no string
+  matching — so anything with two defensible answers is a bug.
+- No date-fragile questions ("most-followed on Instagram").
+
+`pickQuestion` draws at random, excluding `usedQuestionKeys`, and resets the pool when
+exhausted. Questions are keyed by their **question text**, so editing a question's wording
+resets its used-state.
+
+If you bulk-edit the bank, verify with a script rather than by eye — past passes caught
+letter clues whose hint letter didn't match the answer, and unfinished drafts.
+
+---
+
+## Conventions
+
+- Tailwind v4 via `@tailwindcss/vite` — no `tailwind.config.js`; theme lives in
+  `src/index.css`.
+- `framer-motion` for screen and reveal animation.
+- Styling is TV-first: large type, high contrast, designed to be read from a couch at
+  1080p fullscreen. Don't optimize for mobile.
+- Player photos are stored as data URLs inside the persisted store. Keep them small.
+
+---
+
+## Deployment
+
+Vercel project `niche-command-center-weakest-link` (linked via `.vercel/`, which is
+gitignored). Production: <https://niche-command-center-weakest-link.vercel.app>
+
+Known local quirk: `vercel --prod` can exit with a `spawn UNKNOWN` telemetry error on this
+machine **after** the deploy has already succeeded. Don't trust the exit code — check
+`vercel ls` or the live URL.
+
+GitHub: <https://github.com/collindickinson4-prog/weakest-link>
