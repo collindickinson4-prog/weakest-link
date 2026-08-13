@@ -11,8 +11,8 @@
 ## Next
 - Play a real game night; note any question that lands badly (too easy/hard/ambiguous)
   and cut it from `src/data/questions.ts`.
-- Consider more wordplay-link questions - the most distinctive Weakest Link device,
-  currently the scarcest at 17 of 495.
+- Consider more wordplay-link questions - the most distinctive Weakest Link device, and
+  the scarcest in the bank.
 
 ## Blocked
 - Nothing.
