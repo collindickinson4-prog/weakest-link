@@ -1,0 +1,68 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Anton', sans-serif;
+  --font-cond: 'Oswald', sans-serif;
+
+  --color-wl-bg: #02040f;
+  --color-wl-blue: #1f6fd6;
+  --color-wl-blue-bright: #4aa6ff;
+  --color-wl-cyan: #7fdcff;
+  --color-wl-steel: #b8c4d6;
+  --color-wl-red: #d4142a;
+  --color-wl-gold: #ffcf4a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: #02040f;
+  color: #eef4ff;
+  font-family: 'Oswald', sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The signature deep-blue studio backdrop: generated studio photo under a
+   legibility vignette (falls back to the plain gradient while the image loads) */
+.wl-stage {
+  background:
+    radial-gradient(ellipse 95% 85% at 50% 40%, rgba(2, 6, 22, 0.3) 0%, rgba(2, 6, 22, 0.55) 62%, rgba(2, 4, 15, 0.88) 100%),
+    url('/studio-backdrop.jpg') center / cover no-repeat,
+    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(40, 110, 210, 0.55) 0%, rgba(12, 40, 95, 0.35) 38%, rgba(2, 6, 22, 0.95) 78%),
+    #02040f;
+}
+
+/* Crossing spotlight beams for the elimination screen */
+.wl-beams::before,
+.wl-beams::after {
+  content: '';
+  position: absolute;
+  inset: -20% -10%;
+  background:
+    conic-gradient(from 200deg at 30% 0%, transparent 0deg, rgba(120, 190, 255, 0.18) 6deg, transparent 14deg),
+    conic-gradient(from 170deg at 50% 0%, transparent 0deg, rgba(150, 210, 255, 0.22) 5deg, transparent 12deg),
+    conic-gradient(from 150deg at 70% 0%, transparent 0deg, rgba(120, 190, 255, 0.18) 6deg, transparent 14deg);
+  pointer-events: none;
+}
+
+.wl-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+.wl-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(120, 170, 240, 0.4);
+  border-radius: 6px;
+}
+
+@keyframes wl-pulse-red {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.5); }
+}
+.wl-pulse-red {
+  animation: wl-pulse-red 0.9s ease-in-out infinite;
+}
