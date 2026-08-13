@@ -18,6 +18,19 @@
 - Nothing.
 
 ## Log
+- 2026-08-13 - Added a LICENSE (MIT, (c) 2026 Collin Dickinson), declared it in
+  `package.json`, and cleaned up `README.md`. GitHub now shows the MIT badge.
+  README fixes: it claimed "Local use only", which stopped being true at the first Vercel
+  deploy - it now leads with the live URL. Documented the audience display (the 📺 corner
+  button and the question-free mirror window), which was a real feature with zero docs.
+  Also stated the 711-question count, the reload-keeps-roster behaviour, that the host
+  judges by ear, and the npm scripts. Added a note that the show name is a trademark of its
+  owners and this is an unaffiliated fan project shipping no show assets - delete it if it
+  reads as inviting a question nobody asked.
+  Docs only, so no redeploy.
+- 2026-08-13 - Rewrote the root commit message and force-pushed: it said "495-question
+  bank". Verified the tree was byte-identical before and after the rewrite. Safe because
+  the repo was hours old and had no other clones.
 - 2026-08-13 - First commit ever, and pushed to a new public GitHub repo
   (https://github.com/collindickinson4-prog/weakest-link). This is now its own git repo
   nested inside the HQ repo; HQ does not track it, so the two histories stay separate.
